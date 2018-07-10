@@ -9,7 +9,7 @@ import re
 
 from multiqc import config
 from multiqc.plots import linegraph, bargraph
-
+import sys
 # Initialise the logger
 log = logging.getLogger(__name__)
 
@@ -24,7 +24,7 @@ def parse_reports(self):
 
     # Go through logs and find Metrics
     for f in self.find_log_files('picard/wgs_metrics', filehandles=True):
-        s_name = None
+        s_names = None
         in_hist = False
         for l in f['f']:
 
@@ -34,43 +34,52 @@ def parse_reports(self):
                     sections = l.split("\t")
                     cov = int(sections[0])
                     count = int(sections[1])
-                    self.picard_wgsmetrics_histogram[s_name][cov] = count
+                    for s_name in s_names:
+                        self.picard_wgsmetrics_histogram[s_name][cov] = count
                 except ValueError:
                     # Reset in case we have more in this log file
-                    s_name = None
+                    s_names = None
                     in_hist = False
 
             # New log starting
             if 'WgsMetrics' in l and 'INPUT' in l:
-                s_name = None
+                s_names = None
                 # Pull sample name from input
-                fn_search = re.search(r"INPUT(?:=|\s+)(\[?[^\s]+\]?)", l, flags=re.IGNORECASE)
-                if fn_search:
-                    s_name = os.path.basename(fn_search.group(1).strip('[]'))
-                    s_name = self.clean_s_name(s_name, f['root'])
+                s_name = None
+                if '/ProcessGPDirectory/' in f['f'].name:
+                    s_name = os.path.abspath(f['f'].name).split('/ProcessGPDirectory/')[0].split('/')[-1]
+                else: sys.exit(0)
+                s_names = [s_name + '_R1', s_name + '_R2']
+                #fn_search = re.search(r"INPUT=(\[?[^\s]+\]?)", l)
+                #if fn_search:
+                #    s_name = os.path.basename(fn_search.group(1).strip('[]'))
+                #    s_name = self.clean_s_name(s_name, f['root'])
 
-            if s_name is not None:
+            if s_names is not None:
                 if 'CollectWgsMetrics$WgsMetrics' in l and '## METRICS CLASS' in l:
-                    if s_name in self.picard_wgsmetrics_data:
-                        log.debug("Duplicate sample name found in {}! Overwriting: {}".format(f['fn'], s_name))
-                    self.add_data_source(f, s_name, section='WgsMetrics')
-                    self.picard_wgsmetrics_data[s_name] = dict()
+                    for s_name in s_names:
+                        if s_name in self.picard_wgsmetrics_data:
+                           log.debug("Duplicate sample name found in {}! Overwriting: {}".format(f['fn'], s_name))
+                        self.add_data_source(f, s_name, section='WgsMetrics')
+                        self.picard_wgsmetrics_data[s_name] = dict()
                     keys = f['f'].readline().strip("\n").split("\t")
                     vals = f['f'].readline().strip("\n").split("\t")
                     if len(vals) == len(keys):
                         for i, k in enumerate(keys):
-                            try:
-                                self.picard_wgsmetrics_data[s_name][k] = float(vals[i])
-                            except ValueError:
-                                self.picard_wgsmetrics_data[s_name][k] = vals[i]
+                            for s_name in s_names:
+                                try:
+                                    self.picard_wgsmetrics_data[s_name][k] = float(vals[i])
+                                except ValueError:
+                                    self.picard_wgsmetrics_data[s_name][k] = vals[i]
 
                     # Skip lines on to histogram
                     next(f['f'])
                     next(f['f'])
                     next(f['f'])
 
-                    self.picard_wgsmetrics_histogram[s_name] = OrderedDict()
-                    in_hist = True
+            for s_name in s_names:
+                self.picard_wgsmetrics_histogram[s_name] = OrderedDict()
+            in_hist = True
 
         for key in list(self.picard_wgsmetrics_data.keys()):
             if len(self.picard_wgsmetrics_data[key]) == 0:
@@ -96,22 +105,7 @@ def parse_reports(self):
             'suffix': 'X',
             'scale': 'GnBu',
         }
-        self.general_stats_headers['MEAN_COVERAGE'] = {
-            'title': 'Mean Coverage',
-            'description': 'The mean coverage in bases of the genome territory, after all filters are applied.',
-            'min': 0,
-            'suffix': 'X',
-            'scale': 'GnBu',
-            'hidden': True,
-        }
-        self.general_stats_headers['SD_COVERAGE'] = {
-            'title': 'Median Coverage',
-            'description': 'The standard deviation coverage in bases of the genome territory, after all filters are applied.',
-            'min': 0,
-            'suffix': 'X',
-            'scale': 'GnBu',
-            'hidden': True,
-        }
+
         # user configurable coverage level
         try:
             covs = config.picard_config['general_stats_target_coverage']

@@ -8,7 +8,7 @@ import os
 import re
 
 from multiqc.plots import bargraph
-
+import sys
 # Initialise the logger
 log = logging.getLogger(__name__)
 
@@ -21,33 +21,41 @@ def parse_reports(self):
     # Go through logs and find Metrics
     for f in self.find_log_files('picard/rrbs_metrics', filehandles=True):
         parsed_data = dict()
-        s_name = None
+        s_names = None
         keys = None
         for l in f['f']:
             # New log starting
             if 'CollectRrbsMetrics' in l and 'INPUT' in l:
-                s_name = None
+                s_names = None
                 keys = None
                 # Pull sample name from input
-                fn_search = re.search(r"INPUT(?:=|\s+)(\[?[^\s]+\]?)", l, flags=re.IGNORECASE)
-                if fn_search:
-                    s_name = os.path.basename(fn_search.group(1).strip('[]'))
-                    s_name = self.clean_s_name(s_name, f['root'])
-                    parsed_data[s_name] = dict()
+                s_name = None
+                if '/ProcessGPDirectory/' in f['f'].name:
+                    s_name = os.path.abspath(f['f'].name).split('/ProcessGPDirectory/')[0].split('/')[-1]
+                else: sys.exit(0)
+                s_names = [s_name + '_R1', s_name + '_R2']
+                for s_name in s_names:
+                    parsed_data[s_name] = {}
+                #fn_search = re.search(r"INPUT=(\[?[^\s]+\]?)", l)
+                #if fn_search:
+                    #s_name = os.path.basename(fn_search.group(1).strip('[]'))
+                    #s_name = self.clean_s_name(s_name, f['root'])
+                    #parsed_data[s_name] = dict()
 
-            if s_name is not None:
+            if s_names is not None:
                 if 'RrbsSummaryMetrics' in l and '## METRICS CLASS' in l:
                     keys = f['f'].readline().strip("\n").split("\t")
                 elif keys:
                     vals = l.strip("\n").split("\t")
                     if len(vals) == len(keys):
                         for i, k in enumerate(keys):
-                            try:
-                                parsed_data[s_name][k] = float(vals[i])
-                            except ValueError:
-                                parsed_data[s_name][k] = vals[i]
+                            for s_name in s_names:
+                                try:
+                                    parsed_data[s_name][k] = float(vals[i])
+                                except ValueError:
+                                    parsed_data[s_name][k] = vals[i]
                     else:
-                        s_name = None
+                        s_names = None
                         keys = None
 
         # Remove empty dictionaries

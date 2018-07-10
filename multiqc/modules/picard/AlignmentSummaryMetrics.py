@@ -6,11 +6,12 @@ from collections import OrderedDict
 import logging
 import os
 import re
-
+import sys
 from multiqc.plots import bargraph
 
 # Initialise the logger
 log = logging.getLogger(__name__)
+
 
 def parse_reports(self):
     """ Find Picard AlignmentSummaryMetrics reports and parse their data """
@@ -21,21 +22,27 @@ def parse_reports(self):
     # Go through logs and find Metrics
     for f in self.find_log_files('picard/alignment_metrics', filehandles=True):
         parsed_data = dict()
-        s_name = None
+        s_names = None
         keys = None
+        s_name = None
+        if '/ProcessGPDirectory/' in f['f'].name:
+            s_name = os.path.abspath(f['f'].name).split('/ProcessGPDirectory/')[0].split('/')[-1]
+        else: sys.exit(0)
         for l in f['f']:
             # New log starting
             if 'AlignmentSummaryMetrics' in l and 'INPUT' in l:
-                s_name = None
                 keys = None
                 # Pull sample name from input
-                fn_search = re.search(r"INPUT(?:=|\s+)(\[?[^\s]+\]?)", l, flags=re.IGNORECASE)
-                if fn_search:
-                    s_name = os.path.basename(fn_search.group(1).strip('[]'))
-                    s_name = self.clean_s_name(s_name, f['root'])
-                    parsed_data[s_name] = dict()
+                s_names = [s_name + '_R1', s_name + '_R2']
+                for s_name in s_names:
+                    parsed_data[s_name] = {}
+                # fn_search = re.search(r"INPUT=(\[?[^\s]+\]?)", l)
+                # if fn_search:
+                #    s_name = os.path.basename(fn_search.group(1).strip('[]'))
+                #    s_name = self.clean_s_name(s_name, f['root'])
+                #    parsed_data[s_name] = dict()
 
-            if s_name is not None:
+            if s_names is not None:
                 if 'AlignmentSummaryMetrics' in l and '## METRICS CLASS' in l:
                     keys = f['f'].readline().strip("\n").split("\t")
                 elif keys:
@@ -44,12 +51,13 @@ def parse_reports(self):
                         # Ignore the FIRST_OF_PAIR / SECOND_OF_PAIR data to simplify things
                         if vals[0] == 'PAIR' or vals[0] == 'UNPAIRED':
                             for i, k in enumerate(keys):
-                                try:
-                                    parsed_data[s_name][k] = float(vals[i])
-                                except ValueError:
-                                    parsed_data[s_name][k] = vals[i]
+                                for s_name in s_names:
+                                    try:
+                                        parsed_data[s_name][k] = float(vals[i])
+                                    except ValueError:
+                                        parsed_data[s_name][k] = vals[i]
                     else:
-                        s_name = None
+                        s_names = None
                         keys = None
 
         # Remove empty dictionaries
@@ -86,9 +94,7 @@ def parse_reports(self):
         for s_name in self.picard_alignment_metrics:
             if s_name not in self.general_stats_data:
                 self.general_stats_data[s_name] = dict()
-            self.general_stats_data[s_name].update( self.picard_alignment_metrics[s_name] )
-
-
+            self.general_stats_data[s_name].update(self.picard_alignment_metrics[s_name])
 
         # Make the bar plot of alignment read count
         pdata = dict()
@@ -115,11 +121,11 @@ def parse_reports(self):
             'cpswitch_counts_label': 'Number of Reads',
         }
 
-        self.add_section (
-            name = 'Alignment Summary',
-            anchor = 'picard-alignmentsummary',
-            description = "Plase note that Picard's read counts are divided by two for paired-end data.",
-            plot = bargraph.plot(pdata, keys, pconfig)
+        self.add_section(
+            name='Alignment Summary',
+            anchor='picard-alignmentsummary',
+            description="Plase note that Picard's read counts are divided by two for paired-end data.",
+            plot=bargraph.plot(pdata, keys, pconfig)
         )
 
     # Return the number of detected samples to the parent module

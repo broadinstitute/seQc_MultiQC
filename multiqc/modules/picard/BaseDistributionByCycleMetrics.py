@@ -5,6 +5,7 @@
 import logging
 import os
 import re
+import sys
 
 from multiqc.plots import linegraph
 
@@ -25,13 +26,19 @@ def read_sample_name(line_iter, clean_fn):
         while True:
             new_line = next(line_iter)
             new_line = new_line.strip()
-            if 'BaseDistributionByCycle' in new_line and 'INPUT' in new_line:
-                # Pull sample name from input
-                fn_search = re.search(r"INPUT=?\s*(\[?[^\s]+\]?)", new_line, flags=re.IGNORECASE)
-                if fn_search:
-                    s_name = os.path.basename(fn_search.group(1).strip('[]'))
-                    s_name = clean_fn(s_name)
-                    return s_name
+            s_name = None
+            if '/ProcessGPDirectory/' in f['f'].name:
+                s_name = os.path.abspath(f['f'].name).split('/ProcessGPDirectory/')[0].split('/')[-1]
+            else: sys.exit(0)
+            #if 'BaseDistributionByCycle' in new_line and 'INPUT' in new_line:
+            # Pull sample name from input
+            #s_name = new_line.split('INPUT=')[1].split()[0].split('/')[-2]
+            return s_name
+                #fn_search = re.search(r"INPUT=(\[?[^\s]+\]?)", new_line)
+                #if fn_search:
+                #    s_name = os.path.basename(fn_search.group(1).strip('[]'))
+                #    s_name = clean_fn(s_name)
+                #    return s_name
     except StopIteration:
         return None
 
@@ -208,3 +215,4 @@ def parse_reports(self):
 
     # Return the number of detected samples to the parent module
     return len(self.picard_baseDistributionByCycle_data)
+

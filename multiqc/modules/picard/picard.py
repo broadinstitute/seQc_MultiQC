@@ -20,9 +20,7 @@ from . import OxoGMetrics
 from . import RnaSeqMetrics
 from . import RrbsSummaryMetrics
 from . import TargetedPcrMetrics
-from . import ValidateSamFile
 from . import WgsMetrics
-
 
 # Initialise the logger
 log = logging.getLogger(__name__)
@@ -86,10 +84,6 @@ class MultiqcModule(BaseMultiqcModule):
         n['TargetedPcrMetrics'] = TargetedPcrMetrics.parse_reports(self)
         if n['TargetedPcrMetrics'] > 0:
             log.info("Found {} TargetedPcrMetrics reports".format(n['TargetedPcrMetrics']))
-
-        n['ValidateSamFile'] = ValidateSamFile.parse_reports(self)
-        if n['ValidateSamFile'] > 0:
-            log.info("Found {} ValidateSamFile reports".format(n['ValidateSamFile']))
 
         n['WgsMetrics'] = WgsMetrics.parse_reports(self)
         if n['WgsMetrics'] > 0:

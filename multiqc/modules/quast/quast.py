@@ -262,8 +262,8 @@ class MultiqcModule(BaseMultiqcModule):
             nums_by_t = dict()
             for k, v in d.items():
                 m = re.match('# contigs \(>= (\d+) bp\)', k)
-                if m and v != '-':
-                    nums_by_t[int(m.groups()[0])] = int(v)
+                if m:
+                    nums_by_t[int(m.groups()[0])] = v
 
             tresholds = sorted(nums_by_t.keys(), reverse=True)
             p = dict()
@@ -279,6 +279,9 @@ class MultiqcModule(BaseMultiqcModule):
                     p[c] = nums_by_t[t] - nums_by_t[tresholds[i - 1]]
             if not categories:
                 categories = cats
+            elif set(cats) != set(categories):
+                log.warning("Different contig threshold categories for samples, skip plotting barplot".format(s_name))
+                continue
             data[s_name] = p
 
         pconfig = {

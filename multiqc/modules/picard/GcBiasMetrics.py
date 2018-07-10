@@ -5,6 +5,7 @@
 import logging
 import os
 import re
+import sys
 
 from multiqc.plots import linegraph
 
@@ -21,56 +22,62 @@ def parse_reports(self):
 
     # Go through logs and find Metrics
     for f in self.find_log_files('picard/gcbias', filehandles=True):
-        s_name = None
+        s_names = None
         gc_col = None
         cov_col = None
         for l in f['f']:
             # New log starting
             if 'GcBiasMetrics' in l and 'INPUT' in l:
                 s_name = None
-
+                if '/ProcessGPDirectory/' in f['f'].name:
+                    s_name = os.path.abspath(f['f'].name).split('/ProcessGPDirectory/')[0].split('/')[-1]
+                else: sys.exit(0)
+                s_names = [s_name + '_R1', s_name + '_R2']
                 # Pull sample name from input
-                fn_search = re.search(r"INPUT(?:=|\s+)(\[?[^\s]+\]?)", l, flags=re.IGNORECASE)
-                if fn_search:
-                    s_name = os.path.basename(fn_search.group(1).strip('[]'))
-                    s_name = self.clean_s_name(s_name, f['root'])
+                # fn_search = re.search(r"INPUT=(\[?[^\s]+\]?)", l)
+                # if fn_search:
+                #    s_name = os.path.basename(fn_search.group(1).strip('[]'))
+                #    s_name = self.clean_s_name(s_name, f['root'])
 
-            if s_name is not None:
-                if gc_col is not None and cov_col is not None :
+            if s_names is not None:
+                if gc_col is not None and cov_col is not None:
                     try:
                         # Note that GC isn't always the first column.
                         s = l.strip("\n").split("\t")
-                        self.picard_GCbias_data[s_name][ int(s[gc_col]) ] = float(s[cov_col])
+                        for s_name in s_names:
+                            self.picard_GCbias_data[s_name][int(s[gc_col])] = float(s[cov_col])
                     except IndexError:
                         s_name = None
                         gc_col = None
                         cov_col = None
 
                 if 'GcBiasDetailMetrics' in l and '## METRICS CLASS' in l:
-                    if s_name in self.picard_GCbias_data:
-                        log.debug("Duplicate sample name found in {}! Overwriting: {}".format(f['fn'], s_name))
-                    self.add_data_source(f, s_name, section='GcBiasDetailMetrics')
-                    self.picard_GCbias_data[s_name] = dict()
-                    # Get header - find columns with the data we want
+                    for s_name in s_names:
+                        if s_name in self.picard_GCbias_data:
+                            log.debug("Duplicate sample name found in {}! Overwriting: {}".format(f['fn'], s_name))
+                        self.add_data_source(f, s_name, section='GcBiasDetailMetrics')
+                        self.picard_GCbias_data[s_name] = dict()
+                        # Get header - find columns with the data we want
                     l = f['f'].readline()
                     s = l.strip("\n").split("\t")
                     gc_col = s.index('GC')
                     cov_col = s.index('NORMALIZED_COVERAGE')
 
                 if 'GcBiasSummaryMetrics' in l and '## METRICS CLASS' in l:
-                    if s_name in self.picard_GCbias_data:
-                        log.debug("Duplicate sample name found in {}! Overwriting: {}".format(f['fn'], s_name))
-                    self.add_data_source(f, s_name, section='GcBiasSummaryMetrics')
-                    self.picard_GCbiasSummary_data[s_name] = dict()
+                    for s_name in s_names:
+                        if s_name in self.picard_GCbias_data:
+                            log.debug("Duplicate sample name found in {}! Overwriting: {}".format(f['fn'], s_name))
+                        self.add_data_source(f, s_name, section='GcBiasSummaryMetrics')
+                        self.picard_GCbiasSummary_data[s_name] = dict()
 
                     keys = f['f'].readline().rstrip("\n").split("\t")
                     vals = f['f'].readline().rstrip("\n").split("\t")
                     for i, k in enumerate(keys):
-                        try:
-                            self.picard_GCbiasSummary_data[s_name][k] = float(vals[i])
-                        except ValueError:
-                            self.picard_GCbiasSummary_data[s_name][k] = vals[i]
-
+                        for s_name in s_names:
+                            try:
+                                self.picard_GCbiasSummary_data[s_name][k] = float(vals[i])
+                            except ValueError:
+                                self.picard_GCbiasSummary_data[s_name][k] = vals[i]
 
         for s_name in list(self.picard_GCbias_data.keys()):
             if len(self.picard_GCbias_data[s_name]) == 0:
@@ -82,12 +89,10 @@ def parse_reports(self):
                 self.picard_GCbiasSummary_data.pop(s_name, None)
                 log.debug("Removing {} as no data parsed".format(s_name))
 
-
     # Filter to strip out ignored sample names
     self.picard_GCbias_data = self.ignore_samples(self.picard_GCbias_data)
 
     if len(self.picard_GCbias_data) > 0:
-
         # Plot the graph
 
         pconfig = {
@@ -105,18 +110,17 @@ def parse_reports(self):
                 {'value': 1, 'color': '#999999', 'width': 2, 'dashStyle': 'LongDash'},
             ]
         }
-        self.add_section (
-            name = 'GC Coverage Bias',
-            anchor = 'picard-gcbias',
-            description = 'This plot shows bias in coverage across regions of the genome with varying GC content.'\
-                ' A perfect library would be a flat line at <code>y = 1</code>.',
-            plot = linegraph.plot(self.picard_GCbias_data, pconfig)
+        self.add_section(
+            name='GC Coverage Bias',
+            anchor='picard-gcbias',
+            description='This plot shows bias in coverage across regions of the genome with varying GC content.' \
+                        ' A perfect library would be a flat line at <code>y = 1</code>.',
+            plot=linegraph.plot(self.picard_GCbias_data, pconfig)
         )
 
     if len(self.picard_GCbiasSummary_data) > 0:
         # Write parsed summary data to a file
         self.write_data_file(self.picard_GCbiasSummary_data, 'multiqc_picard_gcbias')
-
 
     # Return the number of detected samples to the parent module
     return len(self.picard_GCbias_data)

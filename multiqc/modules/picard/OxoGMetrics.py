@@ -5,7 +5,7 @@
 import logging
 import os
 import re
-
+import sys
 # Initialise the logger
 log = logging.getLogger(__name__)
 
@@ -22,26 +22,35 @@ def parse_reports(self):
         parsed_data = list()
         sample_names = list()
         s_files = list()
-        s_name = None
+        s_names = None
         keys = None
         for l in f['f']:
             # New log starting
             if 'CollectOxoGMetrics' in l and 'INPUT' in l:
-                s_name = None
                 keys = None
                 context_col = None
 
                 # Pull sample name from input
-                fn_search = re.search(r"INPUT(?:=|\s+)(\[?[^\s]+\]?)", l, flags=re.IGNORECASE)
-                if fn_search:
-                    s_name = os.path.basename(fn_search.group(1).strip('[]'))
-                    s_name = self.clean_s_name(s_name, f['root'])
+                fn_search = re.search(r"INPUT=(\[?[^\s]+\]?)", l)
+                s_name = None
+                if '/ProcessGPDirectory/' in f['f'].name:
+                    s_name = os.path.abspath(f['f'].name).split('/ProcessGPDirectory/')[0].split('/')[-1]
+                else:
+                    sys.exit(0)
+                s_names = [s_name + '_R1', s_name + '_R2']
+                for s_name in s_names:
                     parsed_data.append(dict())
                     sample_names.append(s_name)
                     s_files.append(f)
+                #if fn_search:
+                #    s_name = os.path.basename(fn_search.group(1).strip('[]'))
+                #   s_name = self.clean_s_name(s_name, f['root'])
+                #    parsed_data.append(dict())
+                #    sample_names.append(s_name)
+                #    s_files.append(f)
 
 
-            if s_name is not None:
+            if s_names is not None:
                 if 'CollectOxoGMetrics$CpcgMetrics' in l and '## METRICS CLASS' in l:
                     keys = f['f'].readline().strip("\n").split("\t")
                     context_col = keys.index('CONTEXT')

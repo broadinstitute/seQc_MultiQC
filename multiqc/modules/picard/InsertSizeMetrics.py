@@ -6,7 +6,7 @@ from collections import OrderedDict
 import logging
 import os
 import re
-
+import sys
 from multiqc.plots import linegraph
 
 # Initialise the logger
@@ -23,18 +23,23 @@ def parse_reports(self):
 
     # Go through logs and find Metrics
     for f in self.find_log_files('picard/insertsize', filehandles=True):
+        s_names = None
         s_name = None
+        if '/ProcessGPDirectory/' in f['f'].name:
+            s_name = os.path.abspath(f['f'].name).split('/ProcessGPDirectory/')[0].split('/')[-1]
+        else: sys.exit(0)
         in_hist = False
         for l in f['f']:
 
             # Catch the histogram values
-            if s_name is not None and in_hist is True:
+            if s_names is not None and in_hist is True:
                 try:
                     sections = l.split("\t")
                     ins = int(sections[0])
-                    tot_count = sum( [int(x) for x in sections[1:]] )
-                    self.picard_insertSize_histogram[s_name][ins] = tot_count
-                    self.picard_insertSize_samplestats[s_name]['total_count'] += tot_count
+                    tot_count = sum([int(x) for x in sections[1:]])
+                    for s_name in s_names:
+                        self.picard_insertSize_histogram[s_name][ins] = tot_count
+                        self.picard_insertSize_samplestats[s_name]['total_count'] += tot_count
                 except ValueError:
                     # Reset in case we have more in this log file
                     s_name = None
@@ -42,51 +47,57 @@ def parse_reports(self):
 
             # New log starting
             if 'InsertSizeMetrics' in l and 'INPUT' in l:
-                s_name = None
                 # Pull sample name from input
-                fn_search = re.search(r"INPUT(?:=|\s+)(\[?[^\s]+\]?)", l, flags=re.IGNORECASE)
-                if fn_search:
-                    s_name = os.path.basename(fn_search.group(1).strip('[]'))
-                    s_name = self.clean_s_name(s_name, f['root'])
+                s_names = [s_name + '_R1', s_name + '_R2']
+                # fn_search = re.search(r"INPUT=(\[?[^\s]+\]?)", l)
+                # if fn_search:
+                #    s_name = os.path.basename(fn_search.group(1).strip('[]'))
+                #    s_name = self.clean_s_name(s_name, f['root'])
 
-            if s_name is not None:
+            if s_names is not None:
                 if 'InsertSizeMetrics' in l and '## METRICS CLASS' in l:
-                    if s_name in self.picard_insertSize_data:
-                        log.debug("Duplicate sample name found in {}! Overwriting: {}".format(f['fn'], s_name))
+                    for s_name in s_names:
+                        if s_name in self.picard_insertSize_data:
+                            log.debug("Duplicate sample name found in {}! Overwriting: {}".format(f['fn'], s_name))
                     self.add_data_source(f, s_name, section='InsertSizeMetrics')
                     keys = f['f'].readline().strip("\n").split("\t")
                     vals = f['f'].readline().strip("\n").split("\t")
-                    self.picard_insertSize_samplestats[s_name] = {'total_count': 0, 'meansum':0, 'total_pairs':0 }
+                    for s_name in s_names:
+                        self.picard_insertSize_samplestats[s_name] = {'total_count': 0, 'meansum': 0, 'total_pairs': 0}
                     orientation_idx = keys.index('PAIR_ORIENTATION')
                     while len(vals) == len(keys):
                         pair_orientation = vals[orientation_idx]
-                        rowkey = '{}_{}'.format(s_name, pair_orientation)
-                        self.picard_insertSize_data[rowkey] = OrderedDict()
-                        self.picard_insertSize_data[rowkey]['SAMPLE_NAME'] = s_name
+                        for s_name in s_names:
+                            rowkey = '{}_{}'.format(s_name, pair_orientation)
+                            self.picard_insertSize_data[rowkey] = OrderedDict()
+                            self.picard_insertSize_data[rowkey]['SAMPLE_NAME'] = s_name
                         for i, k in enumerate(keys):
                             try:
                                 self.picard_insertSize_data[rowkey][k] = float(vals[i])
                             except ValueError:
                                 try:
-                                    self.picard_insertSize_data[rowkey][k] = float(vals[i].replace(',','.'))
-                                    log.debug("Switching commas for points in '{}': {} - {}".format(f['fn'], vals[i], vals[i].replace(',','.')))
+                                    self.picard_insertSize_data[rowkey][k] = float(vals[i].replace(',', '.'))
+                                    log.debug("Switching commas for points in '{}': {} - {}".format(f['fn'], vals[i],
+                                                                                                    vals[i].replace(',',
+                                                                                                                    '.')))
                                 except ValueError:
                                     self.picard_insertSize_data[rowkey][k] = vals[i]
                             except IndexError:
-                                pass # missing data
+                                pass  # missing data
                         # Add to mean sums
                         rp = self.picard_insertSize_data[rowkey]['READ_PAIRS']
                         mis = self.picard_insertSize_data[rowkey]['MEAN_INSERT_SIZE']
-                        self.picard_insertSize_samplestats[s_name]['meansum'] += (rp * mis)
-                        self.picard_insertSize_samplestats[s_name]['total_pairs'] += rp
+                        for s_name in s_names:
+                            self.picard_insertSize_samplestats[s_name]['meansum'] += (rp * mis)
+                            self.picard_insertSize_samplestats[s_name]['total_pairs'] += rp
 
                         vals = f['f'].readline().strip("\n").split("\t")
 
                     # Skip lines on to histogram
                     l = f['f'].readline().strip("\n")
                     l = f['f'].readline().strip("\n")
-
-                    self.picard_insertSize_histogram[s_name] = OrderedDict()
+                    for s_name in s_names:
+                        self.picard_insertSize_histogram[s_name] = OrderedDict()
                     in_hist = True
 
         for key in list(self.picard_insertSize_data.keys()):
@@ -109,7 +120,6 @@ def parse_reports(self):
             if j > (self.picard_insertSize_samplestats[s_name]['total_count'] / 2):
                 self.picard_insertSize_samplestats[s_name]['summed_median'] = idx
                 break
-
 
     # Filter to strip out ignored sample names
     self.picard_insertSize_data = self.ignore_samples(self.picard_insertSize_data)
@@ -146,7 +156,7 @@ def parse_reports(self):
         for s_name in self.picard_insertSize_samplestats:
             if s_name not in self.general_stats_data:
                 self.general_stats_data[s_name] = dict()
-            self.general_stats_data[s_name].update( self.picard_insertSize_samplestats[s_name] )
+            self.general_stats_data[s_name].update(self.picard_insertSize_samplestats[s_name])
 
         # Section with histogram plot
         if len(self.picard_insertSize_histogram) > 0:
@@ -154,9 +164,9 @@ def parse_reports(self):
             data_percent = {}
             for s_name, data in self.picard_insertSize_histogram.items():
                 data_percent[s_name] = OrderedDict()
-                total = float( sum( data.values() ) )
+                total = float(sum(data.values()))
                 for k, v in data.items():
-                    data_percent[s_name][k] = (v/total)*100
+                    data_percent[s_name][k] = (v / total) * 100
 
             # Plot the data and add section
             pconfig = {
@@ -174,13 +184,12 @@ def parse_reports(self):
                     {'name': 'Percentages', 'ylab': 'Percentage of Counts'}
                 ]
             }
-            self.add_section (
-                name = 'Insert Size',
-                anchor = 'picard-insertsize',
-                description = 'Plot shows the number of reads at a given insert size. Reads with different orientations are summed.',
-                plot = linegraph.plot([self.picard_insertSize_histogram, data_percent], pconfig)
+            self.add_section(
+                name='Insert Size',
+                anchor='picard-insertsize',
+                description='Plot shows the number of reads at a given insert size. Reads with different orientations are summed.',
+                plot=linegraph.plot([self.picard_insertSize_histogram, data_percent], pconfig)
             )
-
 
     # Return the number of detected samples to the parent module
     return len(self.picard_insertSize_data)
