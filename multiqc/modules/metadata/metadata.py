@@ -26,7 +26,7 @@ class MultiqcModule(BaseMultiqcModule):
         # Parse logs
         self.metadata = dict()
         for f in self.find_log_files('metadata', filehandles=True):
-	    self.parse_metadata(f)
+            self.parse_metadata(f)
 
         # Filter to strip out ignored sample names
         self.metadata = self.ignore_samples(self.metadata)
@@ -43,7 +43,7 @@ class MultiqcModule(BaseMultiqcModule):
             'title': 'Project_ID',
             'description': 'Project_ID'
         }
-	"""
+        """
 	headers['volume'] = {
             'title': 'Sample Volume',
             'description': 'Sample Volume',
@@ -67,23 +67,23 @@ class MultiqcModule(BaseMultiqcModule):
 	    'min': 0
 	}
         """
-	self.general_stats_addcols(self.metadata, headers)
+        self.general_stats_addcols(self.metadata, headers)
 
         # Make barplot
         # self.metadata_boxplot()
 
     def parse_metadata(self, f):
-	for line in f['f']:
-		data = json.loads(line)
-		s_name = os.path.abspath(f['f'].name).split('/')[-2]
-		suffices = ['_R1', '_R2']
-		for s in suffices:
-			self.metadata[s_name + s] = dict()
-			print(data)
-			self.metadata[s_name + s]['Project_ID'] = data["Project_ID"]
-			"""
-			self.metadata[s_name + s]['volume'] = data["volume"]
-			self.metadata[s_name + s]['conc'] = data["conc"]
-			self.metadata[s_name + s]['pool_id'] = data['pool_id']
-			self.metadata[s_name + s]['RQS'] = data['RQS']
-			"""
+         for line in f['f']:
+             data = json.loads(line)
+             s_name = os.path.abspath(f['f'].name).split('/')[-2]
+             suffices = ['_R1', '_R2']
+             for s in suffices:
+                  self.metadata[s_name + s] = dict()
+                  print(data)
+                  self.metadata[s_name + s]['Project_ID'] = data["Project_ID"]
+                  """
+                  self.metadata[s_name + s]['volume'] = data["volume"]
+                  self.metadata[s_name + s]['conc'] = data["conc"]
+                  self.metadata[s_name + s]['pool_id'] = data['pool_id']
+                  self.metadata[s_name + s]['RQS'] = data['RQS']
+                  """

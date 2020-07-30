@@ -61,14 +61,14 @@ class MultiqcModule(BaseMultiqcModule):
         post_database_start = False
         db_number = 0
         err = False
-	all_lines = f["f"].readlines()
-	last_line = all_lines[-1]
-	s_name_r1 = last_line.split()[-2]
-	s_name_r2 = last_line.split()[-1]
+        all_lines = f["f"].readlines()
+        last_line = all_lines[-1]
+        s_name_r1 = last_line.split()[-2]
+        s_name_r2 = last_line.split()[-1]
         for l in all_lines:
             if "Reads file" in l:
-		self.sortmerna[s_name_r1] = dict()
-		self.sortmerna[s_name_r2] = dict()
+                self.sortmerna[s_name_r1] = dict()
+                self.sortmerna[s_name_r2] = dict()
             if "Results:" in l and not post_results_start:
                 post_results_start = True
             if not post_results_start:
@@ -77,7 +77,7 @@ class MultiqcModule(BaseMultiqcModule):
                 if "Total reads =" in l:
                     m = re.search("\d+",l)
                     if m:
-		    	self.sortmerna[s_name_r1]["total"] = int(m.group())
+                        self.sortmerna[s_name_r1]["total"] = int(m.group())
                         self.sortmerna[s_name_r2]["total"] = int(m.group())
                     else:
                         err = True
@@ -85,8 +85,8 @@ class MultiqcModule(BaseMultiqcModule):
                     m = re.search("\d+",l)
                     if m:
                         self.sortmerna[s_name_r1]["rRNA"] = int(m.group())
-			self.sortmerna[s_name_r2]["rRNA"] = int(m.group())
-			self.sortmerna[s_name_r1]["rRNA_pct"] = float(self.sortmerna[s_name_r2]["rRNA"]) / float(self.sortmerna[s_name_r1]["total"]) * 100
+                        self.sortmerna[s_name_r2]["rRNA"] = int(m.group())
+                        self.sortmerna[s_name_r1]["rRNA_pct"] = float(self.sortmerna[s_name_r2]["rRNA"]) / float(self.sortmerna[s_name_r1]["total"]) * 100
                         self.sortmerna[s_name_r2]["rRNA_pct"] = float(self.sortmerna[s_name_r2]["rRNA"]) / float(self.sortmerna[s_name_r2]["total"]) * 100
                     else:
                         err = True
@@ -95,8 +95,8 @@ class MultiqcModule(BaseMultiqcModule):
                     if m:
                         self.sortmerna[s_name_r1]["non_rRNA"] = int(m.group())
                         self.sortmerna[s_name_r2]["non_rRNA"] = int(m.group())
-			self.sortmerna[s_name_r1]["non_rRNA_pct"] = float(self.sortmerna[s_name_r1]["non_rRNA"]) / float(self.sortmerna[s_name_r1]["total"]) * 100
-                    	self.sortmerna[s_name_r2]["non_rRNA_pct"] = float(self.sortmerna[s_name_r2]["non_rRNA"]) / float(self.sortmerna[s_name_r2]["total"]) * 100
+                        self.sortmerna[s_name_r1]["non_rRNA_pct"] = float(self.sortmerna[s_name_r1]["non_rRNA"]) / float(self.sortmerna[s_name_r1]["total"]) * 100
+                        self.sortmerna[s_name_r2]["non_rRNA_pct"] = float(self.sortmerna[s_name_r2]["non_rRNA"]) / float(self.sortmerna[s_name_r2]["total"]) * 100
 		    else:
                         err = True
             if post_database_start:
@@ -109,21 +109,21 @@ class MultiqcModule(BaseMultiqcModule):
                     db = os.path.splitext(os.path.basename(db))[0]
                     pct = float(re.search("\d+\.\d+%", l).group().replace("%",""))
                     count = int(self.sortmerna[s_name_r1]["total"]) * (pct / 100)
-		    self.sortmerna[s_name_r1][db + "_pct"] = pct
+                    self.sortmerna[s_name_r1][db + "_pct"] = pct
                     self.sortmerna[s_name_r2][db + "_pct"] = pct
-		    self.sortmerna[s_name_r1][db + "_count"] = count
+                    self.sortmerna[s_name_r1][db + "_count"] = count
                     self.sortmerna[s_name_r2][db + "_count"] = count
-		else:
+                else:
                     err = True
             if "By database:" in l and not post_database_start:
                 post_database_start = True
         if err:
             log.warning("Error parsing data in: " + s_name_r1)
-	    log.warning("Error parsing data in: " + s_name_r2)
+            log.warning("Error parsing data in: " + s_name_r2)
             self.sortmerna.pop(s_name_r1, 'None')
             self.sortmerna.pop(s_name_r2, 'None')
-	s_name_r1 = None
-	s_name_r2 = None
+        s_name_r1 = None
+        s_name_r2 = None
     def sortmerna_detailed_barplot (self):
         """ Make the HighCharts HTML to plot the sortmerna rates """
 

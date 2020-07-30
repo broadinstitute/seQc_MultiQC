@@ -93,8 +93,8 @@ class MultiqcModule(BaseMultiqcModule):
                 match = re.search('Input Read Pairs: (\d+) Both Surviving: (\d+) \(([\d\.,]+)%\) Forward Only Surviving: (\d+) \(([\d\.,]+)%\) Reverse Only Surviving: (\d+) \(([\d\.,]+)%\) Dropped: (\d+) \(([\d\.,]+)%\)', l)
                 if match:
                     s_names = [s_name, s_name.replace('_R1', '_R2')]
-		    for s_name in s_names:
-		        self.trimmomatic[s_name] = dict()
+                    for s_name in s_names:
+                        self.trimmomatic[s_name] = dict()
                         self.trimmomatic[s_name]['input_read_pairs'] = float( match.group(1) )
                         self.trimmomatic[s_name]['surviving'] = float( match.group(2) )
                         self.trimmomatic[s_name]['surviving_pct'] = float( match.group(3).replace(',','.') )
@@ -105,7 +105,7 @@ class MultiqcModule(BaseMultiqcModule):
                         self.trimmomatic[s_name]['dropped'] = float( match.group(8) )
                         self.trimmomatic[s_name]['dropped_pct'] = float( match.group(9).replace(',','.') )
                     s_name = None
-		    s_names = None
+                    s_names = None
 
 
     def trimmomatic_barplot (self):
